@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+
 use headsail_bsp::{
     pac::{self, Sysctrl},
     ufmt,
@@ -19,15 +20,23 @@ macro_rules! print_example_name {
     };
 }
 
-// Number of nops SysCtrl is capable of executing at 30 MHz reference clocks
+/// Experimentally found value for number of nops HPC is capable of executing per second.
+///
+/// * ASIC values are obtained with 30 MHz reference clocks.
+/// * VP values are obtained with the default performance of a Renode CPU at 100 MIPS
 pub const NOPS_PER_SEC: usize = match () {
-    // These are experimentally found values
-    #[cfg(debug_assertions)]
-    // This is an experimentally found value
-    () => 2_000_000 / 9,
-    #[cfg(not(debug_assertions))]
-    // This is just a guess for now (10x debug)
-    () => 40_000_000 / 9,
+    // VP
+    #[cfg(all(not(feature = "asic"), debug_assertions))]
+    () => 750_000,
+    // VP --release
+    #[cfg(all(not(feature = "asic"), not(debug_assertions)))]
+    () => 30_000_000,
+    // ASIC
+    #[cfg(all(feature = "asic", debug_assertions))]
+    () => 200_000,
+    // ASIC --release
+    #[cfg(all(feature = "asic", not(debug_assertions)))]
+    () => 4_000_000,
 };
 
 /// Make sure to enable uDMA UART prior to using this function

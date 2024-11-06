@@ -26,11 +26,21 @@ pub fn dla_read(buf: &mut [u8], len: usize, offset: usize) {
         });
 }
 
-// Number of nops HPC is capable of executing at 30 MHz reference clocks
+/// Experimentally found value for number of nops HPC is capable of executing per second.
+///
+/// * ASIC values are obtained with 30 MHz reference clocks.
+/// * VP values are obtained with the default performance of a Renode CPU at 100 MIPS
 pub const NOPS_PER_SEC: usize = match () {
-    // These are experimentally found values
-    #[cfg(debug_assertions)]
+    // VP
+    #[cfg(all(not(feature = "asic"), debug_assertions))]
+    () => 750_000,
+    // VP --release
+    #[cfg(all(not(feature = "asic"), not(debug_assertions)))]
+    () => 30_000_000,
+    // ASIC
+    #[cfg(all(feature = "asic", debug_assertions))]
     () => 6_000,
-    #[cfg(not(debug_assertions))]
+    // ASIC --release
+    #[cfg(all(feature = "asic", not(debug_assertions)))]
     () => 120_000,
 };

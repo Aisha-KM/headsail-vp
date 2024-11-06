@@ -3,11 +3,13 @@
         "examples/headsail-bsp/Cargo.toml",
         "examples/sysctrl/Cargo.toml",
         "examples/hpc/Cargo.toml",
+        "examples/hpc/test-memory-maps/Cargo.toml",
     ],
     // rust-analyzer.check.allTargets & rust-analyzer.cargo.extraArgs are required to prevent "can't
     // find std for crate test"
     "rust-analyzer.check.allTargets": false,
     "rust-analyzer.cargo.extraArgs": [
         "--examples"
-    ]
+    ],
+    "rust-analyzer.check.command": "clippy",
 }

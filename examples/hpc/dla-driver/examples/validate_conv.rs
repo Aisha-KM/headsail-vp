@@ -7,7 +7,7 @@ use dla_driver::utils::generate_output_tensor;
 use dla_driver::*;
 use headsail_bsp::apb_uart::ApbUart0;
 use headsail_bsp::{
-    init_alloc, rt::entry, sprint, sprintln, tb::report_fail, tb::report_ok, tb::report_pass,
+    init_heap, rt::entry, sprint, sprintln, tb::report_fail, tb::report_ok, tb::report_pass,
 };
 use panic_halt as _;
 
@@ -37,7 +37,7 @@ fn validate_conv2d_tiny() -> bool {
     let wgt_tensor: Tensor4<i8> = Tensor4::from_data_buffer(2, 3, 3, 3, wgt, Order4::HWKC).unwrap();
     let dout_tensor =
         generate_output_tensor(&din_tensor, &wgt_tensor, dout_i32, Order3::HWC, None, None);
-    let mut output =
+    let mut output: Tensor3<i32> =
         dla_driver::layers::conv2d(din_tensor, wgt_tensor, None, None, None, None, None);
     output.permute(Order3::HWC);
 
@@ -182,7 +182,8 @@ fn validate_conv2d_bias() -> bool {
 
 #[entry]
 fn main() -> ! {
-    init_alloc();
+    // SAFETY: `init_heap` must be called once only
+    unsafe { init_heap() };
     let mut _uart = ApbUart0::init(30_000_000, 115_200);
     sprintln!("Validate conv2d");
     let mut succesful_test = 0;

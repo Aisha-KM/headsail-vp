@@ -1,4 +1,4 @@
-use riscv_pac::HartIdNumber;
+use riscv_pac::{result::Error, HartIdNumber};
 
 /// HPC has 4 HARTs
 #[repr(u16)]
@@ -11,20 +11,25 @@ pub enum HartId {
 }
 
 unsafe impl HartIdNumber for HartId {
-    const MAX_HART_ID_NUMBER: u16 = 3;
+    const MAX_HART_ID_NUMBER: usize = 3;
 
     #[inline]
-    fn number(self) -> u16 {
+    fn number(self) -> usize {
         self as _
     }
 
     #[inline]
-    fn from_number(number: u16) -> Result<Self, u16> {
-        if number > Self::MAX_HART_ID_NUMBER {
-            Err(number)
-        } else {
-            // SAFETY: valid context number
-            Ok(unsafe { core::mem::transmute::<u16, HartId>(number) })
+    fn from_number(number: usize) -> Result<Self, Error> {
+        match number {
+            0 => Ok(HartId::H0),
+            1 => Ok(HartId::H1),
+            2 => Ok(HartId::H2),
+            3 => Ok(HartId::H3),
+            _ => Err(Error::IndexOutOfBounds {
+                index: number,
+                min: 0,
+                max: Self::MAX_HART_ID_NUMBER,
+            }),
         }
     }
 }

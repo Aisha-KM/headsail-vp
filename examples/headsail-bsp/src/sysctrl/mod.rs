@@ -4,5 +4,5 @@ pub mod soc_ctrl;
 #[cfg(feature = "pac")]
 pub mod udma;
 
-mod interrupt;
+pub mod interrupt;
 pub mod mmap;

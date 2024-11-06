@@ -10,7 +10,6 @@ use core::arch::asm;
 
 use headsail_bsp::{apb_uart::ApbUart0, rt::entry, unmask_u32};
 use hello_dla::NOPS_PER_SEC;
-use panic_halt as _;
 
 #[entry]
 fn main() -> ! {

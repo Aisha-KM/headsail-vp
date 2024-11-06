@@ -21,7 +21,7 @@ fn write_file(path: impl AsRef<Path>, text: &str) {
 
 fn main() {
     let in_file = ModelSource::new(
-        "headsail-hpc-v0.1.1.svd".into(),
+        "../../../svd/headsail-hpc-v0.1.1.svd".into(),
         SourceFormat::Svd(keelhaul::ValidateLevel::Strict),
     );
     let test_cfg = CodegenConfig::default()

@@ -65,7 +65,7 @@ plic: IRQControllers.PlatformLevelInterruptController @ {
     [2, 3] -> cpu_hpc1@[11, 9] // mext, sext
     [4, 5] -> cpu_hpc2@[11, 9] // mext, sext
     [6, 7] -> cpu_hpc3@[11, 9] // mext, sext
-    numberOfSources: 23
+    numberOfSources: 27
     numberOfContexts: 8
 
 /*
@@ -193,6 +193,7 @@ apb_uart_0: UART.NS16550 @ {
     sysbus new Bus.BusPointRegistration {address: 0x1FFF00000; cpu: cpu_hpc3}
     }
     wideRegisters: true
+    IRQ -> plic@11
 
 apb_uart_1: UART.NS16550 @ {
     sysbus new Bus.BusPointRegistration {address: 0xFFF01000; cpu: cpu_sysctrl};
@@ -202,6 +203,7 @@ apb_uart_1: UART.NS16550 @ {
     sysbus new Bus.BusPointRegistration {address: 0x1FFF01000; cpu: cpu_hpc3}
     }
     wideRegisters: true
+    IRQ -> plic@12
 
 /*
  * This area of memory if only accessible to HPC and not for Sysctrl
@@ -246,6 +248,8 @@ apb_spi_master_0: SPI.STM32SPI @ {
     sysbus new Bus.BusPointRegistration {address: 0x1FFF02000; cpu: cpu_hpc2};
     sysbus new Bus.BusPointRegistration {address: 0x1FFF02000; cpu: cpu_hpc3}
     }
+    // There is also another interrupt connected at plic@14
+    IRQ -> plic@13
 
 apb_spi_master_1: SPI.STM32SPI @ {
     sysbus new Bus.BusPointRegistration {address: 0xFFF03000; cpu: cpu_sysctrl};
@@ -254,6 +258,8 @@ apb_spi_master_1: SPI.STM32SPI @ {
     sysbus new Bus.BusPointRegistration {address: 0x1FFF03000; cpu: cpu_hpc2};
     sysbus new Bus.BusPointRegistration {address: 0x1FFF03000; cpu: cpu_hpc3}
     }
+    // There is also another interrupt connected at plic@16
+    IRQ -> plic@15
 
 apb_gpio: GPIOPort.CC2538_GPIO @ {
     sysbus new Bus.BusPointRegistration {address: 0xFFF04000; cpu: cpu_sysctrl};
@@ -270,6 +276,39 @@ apb_i2c: I2C.STM32F4_I2C @ {
     sysbus new Bus.BusPointRegistration {address: 0x1FFF05000; cpu: cpu_hpc2};
     sysbus new Bus.BusPointRegistration {address: 0x1FFF05000; cpu: cpu_hpc3}
     }
+
+itc: IRQControllers.PULP_InterruptController @ {sysbus new Bus.BusPointRegistration {address: 0x1A109000; cpu: cpu_sysctrl}}
+    // Interrupt routing guessed based on PULPissimo
+    [0-31] -> cpu_sysctrl@[0-31]
+
+itc_ev: IRQControllers.PULP_EventController @ itc
+    parent: itc
+
+udma_uart: UART.PULP_uDMA_UART @ {sysbus new Bus.BusPointRegistration {address: 0x1A102080; cpu: cpu_sysctrl}}
+    // Interrupt routing guessed based on PULPissimo
+    RxIRQ -> itc_ev@4
+    // Interrupt routing guessed based on PULPissimo
+    TxIRQ -> itc_ev@5
+
+udma_spi: SPI.PULP_uDMA_SPI @ {sysbus new Bus.BusPointRegistration {address: 0x1A102100; cpu: cpu_sysctrl}}
+    // Interrupt routing guessed based on PULPissimo
+    RxIRQ -> itc_ev@0
+    // Interrupt routing guessed based on PULPissimo
+    TxIRQ -> itc_ev@1
+    // Interrupt routing guessed based on PULPissimo
+    CmdIRQ -> itc_ev@2
+
+udma_i2c0: I2C.PULP_uDMA_I2C @ {sysbus new Bus.BusRangeRegistration {address: 0x1A102180; size: 0x80; cpu: cpu_sysctrl}}
+    // Interrupt routing guessed based on PULPissimo
+    RxEvent -> itc_ev@8
+    // Interrupt routing guessed based on PULPissimo
+    TxEvent -> itc_ev@9
+
+sysctrl_timer: Timers.PULP_Timer @ {sysbus new Bus.BusRangeRegistration {address: 0x1A10B000; size: 0x1000; cpu: cpu_sysctrl}}
+    // Interrupt routing guessed based on PULPissimo
+    frequency: 100000
+    // Interrupt routing guessed based on PULPissimo
+    [0, 1] -> itc@[10, 11]
 
 sysbus:
     init:

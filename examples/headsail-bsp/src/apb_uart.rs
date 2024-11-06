@@ -8,6 +8,24 @@ extern crate alloc;
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
+/// When to raise a UART interrupt
+#[derive(Clone)]
+#[repr(u8)]
+pub enum UartInterrupt {
+    /// Interrupt is raised when...
+    ///
+    /// * (fifo disabled) received data is available
+    /// * (fifo enabled) trigger level has been reached (sa. [UART_IIR_FCR_OFS])
+    /// * character timeout has been reached error or break interrupt
+    OnData = 0b1,
+    /// Interrupt is raised when [UART_RBR_THR_DLL_OFS] is empty, i.e., when
+    /// character has been consumed by polling.
+    OnEmpty = 0b1 << 1,
+    /// Interrupt is raised on overrun error, parity error, framing error or
+    /// break interrupt
+    OnError = 0b1 << 2,
+}
+
 /// Relocatable driver for NS16550 UART IP
 ///
 /// The generic represents the base address for the UART. This driver is
@@ -78,6 +96,11 @@ impl<const BASE_ADDR: usize> ApbUart<BASE_ADDR> {
                 );
             }
         }
+
+        #[cfg(feature = "panic-apb-uart0")]
+        unsafe {
+            crate::ufmt_panic::PANIC_UART_IS_INIT = true
+        };
         Self {}
     }
 
@@ -133,12 +156,32 @@ impl<const BASE_ADDR: usize> ApbUart<BASE_ADDR> {
     #[inline]
     pub fn getc(&mut self) -> u8 {
         // Wait for data to become ready
-        while unsafe { read_u8(UART0_ADDR + crate::mmap::UART_LSR_OFS) } & UART_LSR_RX_FIFO_VALID
+        while unsafe { read_u8(BASE_ADDR + crate::mmap::UART_LSR_OFS) } & UART_LSR_RX_FIFO_VALID
             == 0
         {}
 
         // SAFETY: UART0_ADDR is 4-byte aligned
-        unsafe { read_u8(UART0_ADDR) }
+        unsafe { read_u8(BASE_ADDR) }
+    }
+
+    #[inline]
+    pub fn listen(&mut self, int: UartInterrupt) {
+        use crate::mmap::*;
+
+        unsafe {
+            // Save LCR for restoration
+            let p_lcr = read_u8(BASE_ADDR + UART_LCR_OFS);
+
+            // Deassert `LCR[7]` => IER_DLM is IER
+            let lcr = p_lcr & (0b1 << 7);
+            write_u8(BASE_ADDR + UART_LCR_OFS, lcr);
+
+            // Set IER
+            write_u8(BASE_ADDR + UART_IER_DLM_OFS, int as u8);
+
+            // Restore `LCR`
+            write_u8(BASE_ADDR + UART_LCR_OFS, p_lcr);
+        }
     }
 
     #[cfg(feature = "alloc")]
@@ -151,7 +194,7 @@ impl<const BASE_ADDR: usize> ApbUart<BASE_ADDR> {
     }
 }
 
-impl ufmt_write::uWrite for crate::apb_uart::ApbUart0 {
+impl<const BASE_ADDR: usize> ufmt_write::uWrite for ApbUart<BASE_ADDR> {
     type Error = core::convert::Infallible;
 
     fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {

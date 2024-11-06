@@ -417,8 +417,17 @@ def clip(value, clip_amount, bit_width=8):
         return upper_bound
     elif clipped_value < lower_bound:
         return lower_bound
-    else:
-        return clipped_value
+    return clipped_value
+
+def clip_value_to_i16(value):
+    upper_bound = pow(2, 16) // 2 - 1
+    lower_bound = -upper_bound - 1
+    if value > upper_bound:
+        return upper_bound
+    elif value < lower_bound:
+        return lower_bound
+    return value
+
 
 def rounding(value):
     """Round given value
@@ -442,6 +451,14 @@ class Padding:
         self.right = right
         self.top = top
         self.bottom = bottom
+
+    def __str__(self):
+        return "(L:{}, R:{}, T:{}, B:{})".format(self.left, self.right, self.top, self.bottom)
+
+    def __repr__(self):
+        return "(L:{}, R:{}, T:{}, B:{})".format(self.left, self.right, self.top, self.bottom)
+
+
 
 # DLA
 class MemoryBank:
@@ -718,7 +735,7 @@ class Dla:
             while values_written < len(data): # Data packing
 
                 # Bank switching when current bank is filled
-                if offset > bank.size:
+                if offset + (bit_width / 8) - 1 > bank.size:
                     bank_idx = bank_idx + 1
                     assert(bank_idx < len(self.banks)), "Assert failed!, Bank indexing overflow"
                     bank = self.banks[bank_idx]
@@ -839,11 +856,6 @@ class Dla:
                         column_wise.append(data[idx])
 
         column_wise = reshape(column_wise, (filter_amount, input_channels, height, width))
-
-        print_matrix(column_wise[0][0], "flat kernel K0 C0:", pformat="decimal")
-        print_matrix(column_wise[0][1], "flat kernel K0 C1:", pformat="decimal")
-        print_matrix(column_wise[0][2], "flat kernel K0 C2:", pformat="decimal")
-
         return filter_amount, s_channels, width, height, column_wise
 
     def get_input_data(self):
@@ -1032,16 +1044,19 @@ class Dla:
         output_bit_width = self.get_register(MAC_CTRL, MAC_CLIP_OFFSET, 5) if self.get_register(MAC_CTRL, MAC_CLIP_OFFSET, 5) > 0 else 32
 
         if self.get_register(HANDSHAKE, HANDSHAKE_MAC_ENABLE_OFFSET, 1):
+            for i, r in enumerate(input_data):
+                print_matrix(input_data[i], "{} INPUT:".format(i))
+
             print("Mac not enabled")
             # TODO: This might be not correct, make sure S_CHANNELS work like this
-            padding_value = self.get_register(BUF_PAD, BUF_PAD_VALUE_OFFSET, 8)
+            padding_value = cast_long_to_signed_byte(self.get_register(BUF_PAD, BUF_PAD_VALUE_OFFSET, 8))
             res = self.mac.conv2d(input_data, kernel_data, padding, dilation, stride, padding_value=padding_value)
 
-            i = 0
             # Clip results
             res = dla.mac_clip(res)
             for i, r in enumerate(res):
-                print_matrix(res[0], "{} MAC:".format(i))
+                print_matrix(res[i], "{} MAC:".format(i))
+
 
         if self.get_register(HANDSHAKE, HANDSHAKE_BYPASS_ENABLE_OFFSET, 1):
             if self.get_register(HANDSHAKE, HANDSHAKE_BIAS_ENABLE_OFFSET, 1):
@@ -1060,29 +1075,29 @@ class Dla:
 
                 res = tmp
                 for (i, r) in enumerate(res):
-                    print_matrix(res[0], "{} BIAS:".format(i))
+                    print_matrix(r, "{} BIAS:".format(i))
 
             # ReLU (active low)
             if self.get_register(HANDSHAKE, HANDSHAKE_ACTIVE_ENABLE_OFFSET, 1):
                 print("RELU")
                 res = execute_for_all_elements(self.mac.relu_native, res)
-                for (i, r) in enumerate(res):
-                    print_matrix(res[0], "{} ReLU:".format(i))
 
+        # Prevent overflowing i16 range
+        if output_bit_width == 32:
+            self.write_output(res, 32)
+        else:
+            res = execute_for_all_elements(clip_value_to_i16, res)
             # Clipping and rounding
             res = dla.pp_clip(res)
             res = execute_for_all_elements(rounding, res)
             for (i, r) in enumerate(res):
-                print_matrix(res[0], "{} PP:".format(i))
+                print_matrix(r, "{} PP:".format(i))
 
-            output_bit_width = 32 - self.get_register(PP_CTRL, PP_CLIP_OFFSET, 5) # Pack output according to clipping
-
-        # After calculating one layer the device needs new configuration
-        if output_bit_width == 32:
-            self.write_output(res, 32)
-        else:
             self.write_output(res, 8)
 
+
+
+        # After calculating one layer the device needs new configuration
         # Set Done status
         self.set_register(STATUS_ADDR, BUF_DONE_OFFSET, 1, 1)
         self.set_register(STATUS_ADDR, MAC_DONE_OFFSET, 1, 1)
@@ -1117,10 +1132,10 @@ class DlaMac:
         h_middle_zero -- Bool signifying if conv2d has uneven height
         """
 
-        w_in, h_in = get_shape(A)
-        w_kernel, h_kernel = get_shape(kernel)
-        w_out = math.floor((w_in + padding.left + padding.right - dilation[0] * (w_kernel - 1) -1) / stride[0] +1)
-        h_out = math.floor((h_in + padding.top + padding.bottom - dilation[1] * (h_kernel - 1) -1) / stride[1] +1)
+        h_in, w_in = get_shape(A)
+        h_kernel, w_kernel = get_shape(kernel)
+        w_out = math.floor((w_in + padding.left + padding.right - (dilation[0] * (w_kernel - 1)) -1) / stride[0] +1)
+        h_out = math.floor((h_in + padding.top + padding.bottom - (dilation[1] * (h_kernel - 1)) -1) / stride[1] +1)
 
         w_middle_zero = w_kernel % 2 == 1
         h_middle_zero = h_kernel % 2 == 1
@@ -1153,45 +1168,44 @@ class DlaMac:
         print("Input shape:", get_shape(input_img))
 
         # Initialize output filters
-        output_filters = [[[ 0 for _ in range(h_out)] for _ in range(w_out) ] for _ in range(len(kernels)) ] # np.zeros(kernel_out, w_out, h_out)
+        output_filters = [[[ 0 for _ in range(w_out)] for _ in range(h_out) ] for _ in range(len(kernels)) ] # np.zeros(kernel_out, w_out, h_out)
         print("Output shape:", get_shape(output_filters))
 
-        w_kernel_max_offset = len(kernels[0][0]) // 2 # Kernel height max offset
-        h_kernel_max_offset = len(kernels[0][0][0]) // 2 # Kernel width max offset
+        h_kernel_max_offset = len(kernels[0][0]) // 2 # Kernel height max offset
+        w_kernel_max_offset = len(kernels[0][0][0]) // 2 # Kernel width max offset
 
         # Pad inputs
         padded_input = []
         for channel in input_img:
             padded_input.append(self.pad_matrix(channel, padding, padding_value=padding_value))
 
-
         # Apply each kernel to input_img
         for (kernel_idx, kernel) in enumerate(kernels):
             if w_middle_zero:
-                center_x_0 = h_kernel_max_offset * dilation[0]
+                center_x_0 = w_kernel_max_offset * dilation[0]
             else:
-                center_x_0 = h_kernel_max_offset * dilation[0] -1
+                center_x_0 = w_kernel_max_offset * dilation[0]
 
             if h_middle_zero:
-                center_y_0 = w_kernel_max_offset * dilation[1]
+                center_y_0 = h_kernel_max_offset * dilation[1]
             else:
-                center_y_0 = w_kernel_max_offset * dilation[1] - 1
+                center_y_0 = h_kernel_max_offset * dilation[1]
 
-            for w in range(w_out):
-                if w_middle_zero:
-                    center_x = center_x_0 + (w * stride[0])
-                    range_x = [center_x + k * dilation[0] for k in range(-w_kernel_max_offset, w_kernel_max_offset + 1)]
+            for h in range(h_out):
+                if h_middle_zero:
+                    center_y = center_y_0 + (h * stride[1])
+                    range_y = [center_y + k * dilation[1] for k in range(-h_kernel_max_offset, h_kernel_max_offset + 1)]
                 else:
-                    center_x = center_x_0 + (w * stride[0])
-                    range_x = [center_x + k * dilation[0] for k in range(0, w_kernel_max_offset + 1)]
+                    center_y = center_y_0 + (h * stride[1]) # Calculate from top left of center
+                    range_y = [center_y + k * dilation[1] for k in range(-h_kernel_max_offset, h_kernel_max_offset)]
 
-                for h in range(h_out):
-                    if h_middle_zero:
-                        center_y = center_y_0 + (h * stride[1])
-                        range_y = [center_y + k * dilation[1] for k in range(-h_kernel_max_offset, h_kernel_max_offset + 1)]
+                for w in range(w_out):
+                    if w_middle_zero:
+                        center_x = center_x_0 + (w * stride[0])
+                        range_x = [center_x + k * dilation[0] for k in range(-w_kernel_max_offset, w_kernel_max_offset + 1)]
                     else:
-                        center_y = center_y_0 + (h * stride[1]) # Calculate from top left of center
-                        range_y = [center_y + k * dilation[1] for k in range(0, h_kernel_max_offset + 1)]
+                        center_x = center_x_0 + (w * stride[0])
+                        range_x = [center_x + k * dilation[0] for k in range(-w_kernel_max_offset, w_kernel_max_offset)]
 
                     # Sum each channel with current kernel
                     channel_sum = 0
@@ -1199,16 +1213,16 @@ class DlaMac:
 
                         # Constuct a sub matrix
                         # NOTE: Do not use zeroes here, for some reason IronPython can't correctly index nested lists produced by a recursive function. (20240527 vaino-waltteri.granat@tuni.fi)
-                        mat_sub = [[0 for _ in range_y ] for _ in range_x ] # np.zeros(w_out, h_out)
+                        mat_sub = [[0 for _ in range_x ] for _ in range_y ] # np.zeros(w_out, h_out)
 
-                        for mat_x in range(len(range_x)):
-                            for mat_y in range(len(range_y)):
-                                mat_sub[mat_x][mat_y] = channel_data[range_x[mat_x]][range_y[mat_y]]
+                        for mat_y in range(len(range_y)):
+                            for mat_x in range(len(range_x)):
+                                mat_sub[mat_y][mat_x] = channel_data[range_y[mat_y]][range_x[mat_x]]
 
                         channel_res = self.mat_sum(self.matmul_element_wise(mat_sub, kernel[channel_idx]))
                         channel_sum += channel_res
 
-                    output_filters[kernel_idx][w][h] = channel_sum
+                    output_filters[kernel_idx][h][w] = channel_sum
 
         return output_filters
 

@@ -1,7 +1,6 @@
 use alloc::vec::*;
 use core::ffi::c_char;
-#[macro_use]
-use ndarray::{Array, Array3, s};
+use ndarray::{s, Array, Array3};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Order3 {
@@ -260,8 +259,8 @@ pub fn rescale(
         };
 
         channel_slice.map_inplace(|x| {
-            let value = (((*x as f32 * pre_scale) - output_zero as f32) / input_scale) * scale
-                + input_zero as f32;
+             let value = (input_scale / scale) * (*x as f32 * pre_scale - input_zero as f32)
+                 + output_zero as f32;
             *x = value.clamp(i8::MIN as f32, i8::MAX as f32) as i8
         });
     }

@@ -26,6 +26,11 @@ impl<'u> UdmaUart<'u, Disabled> {
         udma.uart_setup().write(|w| unsafe { w.bits(0) });
         udma.uart_setup().write(setup_spec);
 
+        #[cfg(feature = "panic-sysctrl-uart")]
+        unsafe {
+            crate::ufmt_panic::PANIC_UART_IS_INIT = true
+        };
+
         UdmaUart::<Enabled>(self.0, PhantomData)
     }
 }

@@ -1,5 +1,15 @@
 # Headsail - Virtual Platform
 
+## Directories
+
+| Directory | Description                       |
+| :-        | :-                                |
+| .github   | Runnable specs for CI runs        |
+| doc       | Auxiliary documentation           |
+| examples  | C and Rust code to run on device  |
+| scripts   | Renode & Shell scripts to run the virtual platform |
+| vp        | The virtual platform              |
+
 ## Software testing requirements
 
 1. Renode 1.14, the high-level hardware simulator <https://github.com/renode/renode>

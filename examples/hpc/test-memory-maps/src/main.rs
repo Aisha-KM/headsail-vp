@@ -11,7 +11,6 @@ use bsp::{
     tb::{report_fail, report_pass},
     ufmt::{self, uDebug},
 };
-use panic_halt as _;
 
 struct Error(tests::Error);
 

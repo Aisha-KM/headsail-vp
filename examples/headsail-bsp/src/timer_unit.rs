@@ -41,7 +41,7 @@ impl<const BASE_ADDRESS: usize> TimerUnit<BASE_ADDRESS> {
     pub fn disable() {
         let mut reg = read_u32(BASE_ADDRESS + Self::TIMER_CTRL_REG_OFFSET);
         // Write 0 to bit 0 but leave all other bits untouched
-        reg.set_bit(Self::TIMER_ENABLE_BIT as usize, false);
+        reg.set_bit(Self::TIMER_ENABLE_BIT, false);
         write_u32(BASE_ADDRESS + Self::TIMER_CTRL_REG_OFFSET, reg);
     }
 
@@ -50,7 +50,7 @@ impl<const BASE_ADDRESS: usize> TimerUnit<BASE_ADDRESS> {
      */
     #[inline]
     pub fn get_count() -> u32 {
-        return read_u32(BASE_ADDRESS + Self::TIMER_COUNTER_REG_OFFSET);
+        read_u32(BASE_ADDRESS + Self::TIMER_COUNTER_REG_OFFSET)
     }
 
     /**
@@ -59,7 +59,7 @@ impl<const BASE_ADDRESS: usize> TimerUnit<BASE_ADDRESS> {
     #[inline]
     #[cfg(debug_assertions)]
     pub fn get_ctrl_reg() -> u32 {
-        return read_u32(BASE_ADDRESS + Self::TIMER_CTRL_REG_OFFSET);
+        read_u32(BASE_ADDRESS + Self::TIMER_CTRL_REG_OFFSET)
     }
 }
 

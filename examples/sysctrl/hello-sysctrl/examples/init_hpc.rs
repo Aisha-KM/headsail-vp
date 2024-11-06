@@ -139,6 +139,29 @@ fn main() -> ! {
         r2start + r2len
     );
 
+    // Configure cached region for SDRAM
+    verbose_call_with_pattern(
+        "Configure cached region for SDRAM",
+        |pat| {
+            let pval = cluster_cfg.cached_region_addr_length0().read().bits();
+            cluster_cfg
+                .cached_region_addr_length0()
+                .write(|w| unsafe { w.bits(pat) });
+            pval
+        },
+        sdram_region_len,
+        "HPC_CLUSTER_CONFIG_CACHED_REGION_LENGTH0",
+    );
+    let (r0start, r0len) = (
+        cluster_cfg.cached_region_addr_base0().read().bits(),
+        cluster_cfg.cached_region_addr_length0().read().bits(),
+    );
+    sprintln!(
+        "Cached region for SDRAM is now [{:#x}..{:#x}]",
+        r0start,
+        r0start + r0len
+    );
+
     // Configure execute region for C2C
     let c2c_region_len = 0x2000_0000;
     verbose_call_with_pattern(
@@ -162,6 +185,8 @@ fn main() -> ! {
         r3start,
         r3start + r3len
     );
+    // TODO: should also configure cached region length (cachedregionlength1) for C2C but it's not
+    // available on the auto-generated memory map as of now
 
     // Configure execute region for SRAM. Note that there are multiple SRAMs with some holes in
     // between.
@@ -187,6 +212,8 @@ fn main() -> ! {
         r4start,
         r4start + r4len
     );
+    // TODO: should also configure cached region length (cachedregionlength2) for SRAM but it's not
+    // available on the auto-generated memory map as of now
 
     // Turn on HPC core #0
     let hpc_core_en = 0b1 << 20;

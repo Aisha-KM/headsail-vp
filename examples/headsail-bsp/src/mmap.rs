@@ -94,8 +94,8 @@ mod uart {
 
     /// Line Control Register
     ///
-    /// LCR configures the main operation of the uart.It configures the width of the received data, stop bit, parity, and DLAB
-    /// bit.
+    /// LCR configures the main operation of the uart. It configures the width of the received data,
+    /// stop bit, parity, and DLAB bit.
     ///
     /// - `[0:1]`: data configuration bits
     ///     - `0b00`: data is configured to be 5 bits

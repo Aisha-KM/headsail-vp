@@ -15,6 +15,14 @@ env:
   DLA_BIN: dla
   DLA_VALIDATION_BIN: validate
 
+# Cancel any currently running workflows from the same PR, branch, or
+# tag when a new workflow is triggered.
+#
+# https://stackoverflow.com/a/67939898
+concurrency:
+  group: ${{ github.head_ref }}
+  cancel-in-progress: true
+
 jobs:
   check-bsp:
     runs-on: ubuntu-latest
@@ -22,12 +30,19 @@ jobs:
     env:
       RUSTFLAGS: -D warnings
 
+    strategy:
+      fail-fast: false
+
     steps:
     - uses: actions/checkout@v4
     - name: Install requirements
       run: |
         rustup update
         rustup target add riscv64imac-unknown-none-elf riscv32im-unknown-none-elf
+
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: "./examples/headsail-bsp"
 
     - name: Run linter
       working-directory: ./examples/headsail-bsp
@@ -62,12 +77,18 @@ jobs:
   build-dla-example:
     runs-on: ubuntu-latest
 
+    strategy:
+      fail-fast: false
+
     steps:
     - uses: actions/checkout@v4
     - name: Install requirements
       run: |
         rustup update
         rustup target add riscv64imac-unknown-none-elf
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: "./examples/hpc/"
     - name: Run linter
       working-directory: ./examples/hpc/
       run: cargo clippy -- -D clippy::style
@@ -90,6 +111,9 @@ jobs:
       image: antmicro/renode:1.14.0
       options: --user root
 
+    strategy:
+      fail-fast: false
+
     steps:
     - uses: actions/checkout@v4
     - name: Download artifact
@@ -108,6 +132,9 @@ jobs:
 
   build-dla-validation:
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
 
     env:
       RISCV: /opt/riscv/
@@ -131,6 +158,9 @@ jobs:
         $RISCV_XLEN-unknown-elf-ld --version
     - name: Install rustup target
       run: rustup target add riscv64imac-unknown-none-elf
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: "./examples/hpc"
     - name: Build validation
       working-directory: ./examples/hpc/dla-driver
       run: cargo build --example validate -Fvp -Fhpc --target riscv64imac-unknown-none-elf
@@ -144,6 +174,9 @@ jobs:
 
   run-dla-validation:
     needs: build-dla-validation
+
+    strategy:
+      fail-fast: false
 
     runs-on: ubuntu-latest
     container:
@@ -171,12 +204,18 @@ jobs:
   build-ffi:
     runs-on: ubuntu-latest
 
+    strategy:
+      fail-fast: false
+
     steps:
     - uses: actions/checkout@v4
     - name: Install requirements
       run: |
         rustup update
         rustup target add riscv64imac-unknown-none-elf riscv32im-unknown-none-elf
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: "./examples/headsail-bsp-ffi"
     - name: Build FFI without RT on SysCtrl
       working-directory: ./examples/headsail-bsp-ffi
       run: cargo build --target=riscv32im-unknown-none-elf -Fpanic-apb-uart0

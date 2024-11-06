@@ -4,7 +4,7 @@
 extern crate alloc;
 
 use dla_driver::*;
-use headsail_bsp::{init_alloc, rt::entry, sprint, sprintln};
+use headsail_bsp::{init_heap, rt::entry, sprint, sprintln};
 use panic_halt as _;
 
 use rand::rngs::SmallRng;
@@ -125,7 +125,8 @@ fn run_random_layer(
 
 #[entry]
 fn main() -> ! {
-    init_alloc();
+    // SAFETY: `init_heap` must be called once only
+    unsafe { init_heap() };
 
     let mut dla = Dla::new();
     sprintln!("Starting benchmark..");

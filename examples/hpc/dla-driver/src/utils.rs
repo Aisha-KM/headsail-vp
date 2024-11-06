@@ -19,10 +19,9 @@ pub fn calculate_conv2d_out_param_dim(
     let padding = padding.unwrap_or(DEFAULT_PADDING);
     let stride = stride.unwrap_or(DEFAULT_STRIDE);
 
-    let output_width =
-        (input.0 + padding.right + padding.left - 1 * (kernel.0 - 1) - 1) / stride.x + 1;
+    let output_width = (input.0 + padding.right + padding.left - (kernel.0 - 1) - 1) / stride.x + 1;
     let output_height =
-        (input.1 + padding.bottom + padding.top - 1 * (kernel.1 - 1) - 1) / stride.y + 1;
+        (input.1 + padding.bottom + padding.top - (kernel.1 - 1) - 1) / stride.y + 1;
     (output_width as usize, output_height as usize)
 }
 

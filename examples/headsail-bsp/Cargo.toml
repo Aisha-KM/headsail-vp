@@ -36,10 +36,10 @@ pac = []
 [dependencies]
 ufmt = "0.2.0"
 ufmt-write = "0.1.0"
-riscv-rt = { version = "0.12.2", optional = true }
-riscv = { version = "0.11.1" }
-riscv-peripheral = { version = "0.1.0", optional = true }
-riscv-pac = { version = "0.1.1", optional = true }
+riscv-rt = { version = "0.13.0", optional = true }
+riscv = { version = "0.12.1" }
+riscv-peripheral = { version = "0.2.0", optional = true }
+riscv-pac = { version = "0.2.0", optional = true }
 good_memory_allocator = { version = "0.1.7", optional = true }
 bit_field = "0.10.2"
 headsail-sysctrl-pac = { git = "https://github.com/soc-hub-fi/headsail-pac", version = "0.1.1", optional = true }
@@ -59,6 +59,16 @@ required-features = ["rt"]
 name = "uart0_read"
 path = "examples/uart0_read.rs"
 required-features = ["alloc", "rt", "sdram"]
+
+[[example]]
+name = "uart0_read_irq"
+path = "examples/uart0_read_irq.rs"
+required-features = [
+    "hpc-rt",
+    "sprint-apb-uart0",
+    # Restricted to VP currently, as the PLIC driver isn't available for ASIC yet
+    "vp",
+]
 
 [[example]]
 name = "sprintln"
