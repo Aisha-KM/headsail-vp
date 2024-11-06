@@ -159,6 +159,9 @@ impl<'u> UdmaSpim<'u, Enabled> {
         );
 
         self.enqueue_cmd(&cmd_data);
+
+        // Block until TX buffer is ready for new transfer
+        while self.0.spim_tx_cfg().read().pending().bit() {}
         self.enqueue_tx(data);
     }
 
@@ -187,6 +190,9 @@ impl<'u> UdmaSpim<'u, Enabled> {
         );
 
         self.enqueue_cmd(&cmd_data);
+
+        // Block until RX buffer is ready for new transfer
+        while self.0.spim_rx_cfg().read().pending().bit() {}
         self.enqueue_rx(data);
     }
 }
